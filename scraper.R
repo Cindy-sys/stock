@@ -81,7 +81,4 @@ tryCatch({
 
 }, error = function(e){
   print(paste("Lỗi cụ thể:", e$message))
-}, finally = {
-  # CỰC KỲ QUAN TRỌNG: Đóng trình duyệt ảo để giải phóng RAM
-  if(exists("web")) web$session$stop()
-})
+}
