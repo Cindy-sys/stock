@@ -1,0 +1,42 @@
+name: Run R Scraper Daily
+
+on:
+  schedule:
+    - cron: '*/3 0-10 * * 0-6' # Chạy mỗi 3 phút, 7h-17h VN, Thứ 2- CN
+  workflow_dispatch: 
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Setup R
+        uses: r-lib/actions/setup-r@v2
+        with:
+          use-public-rspm: true # Giúp tải các bản R package đã được biên dịch sẵn (nhanh hơn nhiều)
+
+      # BƯỚC QUAN TRỌNG: Thiết lập Cache
+      - name: Cache R packages
+        uses: actions/cache@v3
+        with:
+          path: ${{ env.R_LIBS_USER }}
+          key: ${{ runner.os }}-r-${{ hashFiles('**/scraper.R') }} # Tạo khóa dựa trên file code của bạn
+          restore-keys: ${{ runner.os }}-r-
+
+      - name: Install dependencies
+        run: |
+          # Chỉ cài nếu thư viện chưa tồn tại trong cache
+          Rscript -e 'install.packages(c("rvest", "dplyr", "stringr", "jsonlite", "lubridate"))'
+
+      - name: Run script
+        run: Rscript scraper.R
+
+      - name: Commit results
+        run: |
+          git config --global user.name "GitHub Action"
+          git config --global user.email "action@github.com"
+          git add .
+          git commit -m "Auto-update VN30: $(date)" || exit 0
+          git push
