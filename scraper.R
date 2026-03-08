@@ -1,4 +1,3 @@
-# scraper.R
 library(rvest)
 library(dplyr)
 library(stringr)
@@ -7,21 +6,28 @@ library(lubridate)
 
 url <- "https://banggia.vndirect.com.vn/chung-khoan/vn30"
 
+# Tăng thời gian chờ lên 15-20s vì GitHub Actions chạy máy ảo nên mạng có thể chậm hơn máy thật
 web <- read_html_live(url)
-Sys.sleep(5)
-# Thiết lập địa chỉ lưu file tại thư mục hiện tại
+Sys.sleep(20) 
+
 folder_path <- "./"
 csv_path  <- file.path(folder_path, "bang_gia_vn30.csv")
 json_path <- file.path(folder_path, "bang_gia_vn30.json")
 
-# Lấy dữ liệu (Chỉ chạy 1 lần mỗi khi gọi script)
 tryCatch({
+  # Lấy các dòng dữ liệu
   rows <- web %>% html_elements("tbody#banggia-khop-lenh-body tr")
   
+  if (length(rows) == 0) {
+    stop("Không tìm thấy dòng dữ liệu nào. Có thể thị trường đang đóng cửa hoặc web chưa tải xong.")
+  }
+
   all_data <- data.frame()
   
   for (i in rows) {
     row <- i %>% html_elements('td') %>% html_text2()
+    
+    # Kiểm tra số lượng cột (Bảng VN30 thường có khoảng 26-27 cột)
     if(length(row) < 20) next
     
     new_row <- data.frame(
@@ -55,21 +61,27 @@ tryCatch({
       DTNN_ban = as.numeric(gsub(",", "", unlist(str_split(row[26], " "))[2])),
       stringsAsFactors = FALSE #Tránh bị label encoding
     )
+    
     all_data <- rbind(all_data, new_row)
   }
   
-  # Lưu vào CSV
-  write.table(all_data, file = csv_path, append = TRUE, sep = ",", 
-              row.names = FALSE, quote = FALSE, 
-              col.names = !file.exists(csv_path), fileEncoding = "UTF-8")
-  
-  # Lưu vào JSON
-  con <- file(json_path, open = "a")
-  stream_out(all_data, con, verbose = FALSE)
-  close(con)
-  
-  print(paste("Đã cập nhật dữ liệu lúc:", Sys.time()))
-}, error = function(e){
-  message("Có lỗi xảy ra!")
+  if (nrow(all_data) > 0) {
+    # Lưu vào CSV
+    write.table(all_data, file = csv_path, append = TRUE, sep = ",", 
+                row.names = FALSE, quote = FALSE, 
+                col.names = !file.exists(csv_path), fileEncoding = "UTF-8")
+    
+    # Lưu vào JSON
+    con <- file(json_path, open = "a")
+    stream_out(all_data, con, verbose = FALSE)
+    close(con)
+    
+    print(paste("Thành công! Đã cập nhật", nrow(all_data), "mã vào lúc:", Sys.time()))
+  }
 
+}, error = function(e){
+  print(paste("Lỗi cụ thể:", e$message))
+}, finally = {
+  # CỰC KỲ QUAN TRỌNG: Đóng trình duyệt ảo để giải phóng RAM
+  if(exists("web")) web$session$stop()
 })
