@@ -2,7 +2,8 @@ name: Run R Scraper Live
 
 on:
   schedule:
-    - cron: '*/5 0-10 * * 0-6' # Chạy mỗi 10 phút, 7h-17h VN, Thứ 2-6
+    # Chạy mỗi 5 phút, từ 0h-10h UTC (7h-17h VN), TẤT CẢ các ngày (0-6)
+    - cron: '*/5 0-10 * * 0-6' 
   workflow_dispatch: 
 
 jobs:
@@ -12,20 +13,18 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v3
         with:
-          fetch-depth: 0 # Lấy toàn bộ lịch sử để tránh lỗi khi git pull
+          fetch-depth: 0 
 
       - name: Setup R
         uses: r-lib/actions/setup-r@v2
         with:
           use-public-rspm: true
 
-      # BƯỚC QUAN TRỌNG 1: Cài đặt Chrome để chạy Live scan
       - name: Setup Chrome
         uses: browser-actions/setup-chrome@v1
         with:
           chrome-version: stable
 
-      # BƯỚC QUAN TRỌNG 2: Cache để không phải cài lại thư viện từ đầu
       - name: Cache R packages
         uses: actions/cache@v3
         with:
@@ -35,19 +34,23 @@ jobs:
 
       - name: Install dependencies
         run: |
-          Rscript -e 'install.packages(c("rvest", "dplyr", "stringr", "jsonlite", "lubridate", "chromote"))'
+          Rscript -e 'if (!require("chromote")) install.packages("chromote")'
+          Rscript -e 'if (!require("rvest")) install.packages("rvest")'
+          Rscript -e 'if (!require("dplyr")) install.packages("dplyr")'
+          Rscript -e 'if (!require("jsonlite")) install.packages("jsonlite")'
+          Rscript -e 'if (!require("lubridate")) install.packages("lubridate")'
+          Rscript -e 'if (!require("stringr")) install.packages("stringr")'
 
       - name: Run script
         run: Rscript scraper.R
 
-      # BƯỚC QUAN TRỌNG 3: Sửa lỗi "rejected" bằng cách pull trước khi push
       - name: Commit and Push results
         run: |
           git config --global user.name "GitHub Action"
           git config --global user.email "action@github.com"
           git add .
-          # Tránh lỗi nếu không có gì thay đổi để commit
-          git commit -m "Auto-update VN30 Live: $(date)" || echo "No changes to commit"
-          # Pull dữ liệu mới nhất về để tránh xung đột 'rejected'
+          # Ghi log kèm thời gian để dễ theo dõi trong tab Code
+          git commit -m "Auto-update VN30: $(date)" || echo "No changes"
+          # Pull rebase để triệt để xóa lỗi 'rejected'
           git pull --rebase origin main
           git push origin main
