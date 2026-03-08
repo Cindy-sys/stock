@@ -1,8 +1,8 @@
-name: Run R Scraper Daily
+name: Run R Scraper Live
 
 on:
   schedule:
-    - cron: '*/3 0-10 * * 0-6' # Chạy mỗi 3 phút, 7h-17h VN, Thứ 2- CN
+    - cron: '*/3 0-10 * * 0-6' # Chạy mỗi 10 phút, 7h-17h VN, Thứ 2-6
   workflow_dispatch: 
 
 jobs:
@@ -11,32 +11,43 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
+        with:
+          fetch-depth: 0 # Lấy toàn bộ lịch sử để tránh lỗi khi git pull
 
       - name: Setup R
         uses: r-lib/actions/setup-r@v2
         with:
-          use-public-rspm: true # Giúp tải các bản R package đã được biên dịch sẵn (nhanh hơn nhiều)
+          use-public-rspm: true
 
-      # BƯỚC QUAN TRỌNG: Thiết lập Cache
+      # BƯỚC QUAN TRỌNG 1: Cài đặt Chrome để chạy Live scan
+      - name: Setup Chrome
+        uses: browser-actions/setup-chrome@v1
+        with:
+          chrome-version: stable
+
+      # BƯỚC QUAN TRỌNG 2: Cache để không phải cài lại thư viện từ đầu
       - name: Cache R packages
         uses: actions/cache@v3
         with:
           path: ${{ env.R_LIBS_USER }}
-          key: ${{ runner.os }}-r-${{ hashFiles('**/scraper.R') }} # Tạo khóa dựa trên file code của bạn
+          key: ${{ runner.os }}-r-${{ hashFiles('scraper.R') }}
           restore-keys: ${{ runner.os }}-r-
 
       - name: Install dependencies
         run: |
-          # Chỉ cài nếu thư viện chưa tồn tại trong cache
-          Rscript -e 'install.packages(c("rvest", "dplyr", "stringr", "jsonlite", "lubridate"))'
+          Rscript -e 'install.packages(c("rvest", "dplyr", "stringr", "jsonlite", "lubridate", "chromote"))'
 
       - name: Run script
         run: Rscript scraper.R
 
-      - name: Commit results
+      # BƯỚC QUAN TRỌNG 3: Sửa lỗi "rejected" bằng cách pull trước khi push
+      - name: Commit and Push results
         run: |
           git config --global user.name "GitHub Action"
           git config --global user.email "action@github.com"
           git add .
-          git commit -m "Auto-update VN30: $(date)" || exit 0
-          git push
+          # Tránh lỗi nếu không có gì thay đổi để commit
+          git commit -m "Auto-update VN30 Live: $(date)" || echo "No changes to commit"
+          # Pull dữ liệu mới nhất về để tránh xung đột 'rejected'
+          git pull --rebase origin main
+          git push origin main
