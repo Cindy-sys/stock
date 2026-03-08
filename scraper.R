@@ -7,10 +7,8 @@ library(lubridate)
 
 url <- "https://banggia.vndirect.com.vn/chung-khoan/vn30"
 
-# Đọc web (sử dụng read_html thay vì live nếu chạy trên server đơn giản, 
-# hoặc giữ nguyên nếu bạn đã cài đặt môi trường browser)
-web <- read_html(url) 
-
+web <- read_html_live(url)
+Sys.sleep(5)
 # Thiết lập địa chỉ lưu file tại thư mục hiện tại
 folder_path <- "./"
 csv_path  <- file.path(folder_path, "bang_gia_vn30.csv")
@@ -73,4 +71,5 @@ tryCatch({
   print(paste("Đã cập nhật dữ liệu lúc:", Sys.time()))
 }, error = function(e){
   message("Có lỗi xảy ra!")
+
 })
